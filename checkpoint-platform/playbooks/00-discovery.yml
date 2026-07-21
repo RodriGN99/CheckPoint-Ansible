@@ -1,0 +1,86 @@
+---
+# =============================================================================
+# 00 - DESCUBRIMIENTO READ-ONLY
+# =============================================================================
+# NO crea, NO modifica, NO publica nada. Solo lee.
+#
+# Objetivos:
+#   1. Validar el camino  VM Ansible -> Management API del SMS (192.168.90.170).
+#   2. Ver que hay ya creado en el SMS: gateways, clusters y paquetes de politica.
+#
+# Uso:
+#   ansible-playbook playbooks/00-discovery.yml --ask-vault-pass
+#
+# Si falla la conexion, lo habitual es que la Management API no acepte llamadas
+# desde la IP de la VM Ansible. En el SMS:
+#   mgmt_cli set api-settings accepted-api-calls-from \
+#     "all ip addresses that can be used for gui clients" --domain "System Data" -r true
+#   api restart && api status
+# =============================================================================
+
+- name: "00 | Descubrimiento read-only del SMS"
+  hosts: sms
+  gather_facts: false
+  connection: httpapi
+  vars:
+    ansible_network_os: check_point.mgmt.checkpoint
+
+  tasks:
+
+    - name: "Listar gateways simples ya existentes"
+      check_point.mgmt.cp_mgmt_simple_gateway_facts:
+        details_level: full
+        limit: 50
+        offset: 0
+      register: cp_gateways
+
+    - name: "Listar clusters ya existentes"
+      check_point.mgmt.cp_mgmt_simple_cluster_facts:
+        details_level: full
+        limit: 50
+        offset: 0
+      register: cp_clusters
+
+    - name: "Listar paquetes de politica"
+      check_point.mgmt.cp_mgmt_package_facts:
+        details_level: standard
+        limit: 50
+        offset: 0
+      register: cp_packages
+      ignore_errors: true      # tolerante: si los params difieren en tu version, no aborta
+
+    # --- Salida por pantalla ---
+
+    - name: "Gateways"
+      ansible.builtin.debug:
+        var: cp_gateways
+
+    - name: "Clusters"
+      ansible.builtin.debug:
+        var: cp_clusters
+
+    - name: "Paquetes de politica"
+      ansible.builtin.debug:
+        var: cp_packages
+
+    # --- Volcado a fichero para revisarlo con calma ---
+    # La carpeta discovery/ esta en .gitignore.
+
+    # 'connection: local' es obligatorio aqui: sin el, la tarea delegada hereda
+    # el 'connection: httpapi' del play e intenta hablar httpapi contra localhost.
+
+    - name: "Asegurar carpeta de salida"
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../discovery"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      connection: local
+
+    - name: "Volcar resultado a JSON"
+      ansible.builtin.copy:
+        content: "{{ { 'gateways': cp_gateways, 'clusters': cp_clusters, 'packages': cp_packages } | to_nice_json }}"
+        dest: "{{ playbook_dir }}/../discovery/discovery-{{ now().strftime('%Y%m%d-%H%M%S') }}.json"
+        mode: "0640"
+      delegate_to: localhost
+      connection: local

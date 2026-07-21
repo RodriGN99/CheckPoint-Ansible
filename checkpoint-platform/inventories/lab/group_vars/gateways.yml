@@ -1,0 +1,5 @@
+---
+# Credenciales del SO Gaia de los miembros (coleccion check_point.gaia).
+# Ojo: NO son necesariamente las mismas que las de la Management API del SMS.
+ansible_user: "{{ vault_cp_gaia_user }}"
+ansible_password: "{{ vault_cp_gaia_password }}"

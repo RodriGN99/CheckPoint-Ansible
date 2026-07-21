@@ -1,0 +1,5 @@
+---
+cp_sms:
+  name: "SMS"
+  ip_address: "192.168.90.170"        # eth0, red 90
+  oob_address: "192.168.92.11"        # eth3, OOB VLAN 920

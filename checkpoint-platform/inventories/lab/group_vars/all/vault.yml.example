@@ -1,0 +1,22 @@
+---
+# PLANTILLA. Este fichero NO lo carga Ansible (la extension .example queda fuera
+# de las que lee group_vars: solo .yml / .yaml / .json).
+#
+# Uso:
+#   cp vault.yml.example vault.yml
+#   # editar vault.yml con los valores reales
+#   ansible-vault encrypt vault.yml
+#
+# vault.yml (cifrado) SI se commitea. La contrasena del vault NUNCA:
+# va en .vault_pass, que esta en .gitignore.
+
+# --- Management API del SMS (usuario admin creado en el FTW) ---
+vault_cp_mgmt_api_user: "CAMBIAME"
+vault_cp_mgmt_api_password: "CAMBIAME"
+
+# --- Usuario admin del SO Gaia (para la coleccion check_point.gaia) ---
+vault_cp_gaia_user: "admin"
+vault_cp_gaia_password: "CAMBIAME"
+
+# --- Clave SIC (one-time password), la misma que ftw_sic_key del FTW ---
+vault_cp_sic_key: "CAMBIAME"

@@ -1,0 +1,36 @@
+---
+# CP-GW-A  ==  "CP Bound 2" en el diagrama EVE-NG
+# Datos tomados del Gaia Portal (Network Management > Network Interfaces).
+cp_member:
+  name: "CP-GW-A"
+  eve_ng_label: "CP Bound 2"
+  ip_address: "192.168.90.171"        # IP principal: SIC y gestion por la red 90
+
+  interfaces:
+    - name: eth0                      # externa / red 90 (nube "Net")
+      ip_address: "192.168.90.171"
+      network_mask: "255.255.255.0"
+
+    - name: eth3                      # sync, cable directo contra cp-gw-b
+      ip_address: "10.255.255.1"
+      # INCOHERENCIA: en el equipo esta como /29 (255.255.255.248) mientras que
+      # cp-gw-b tiene /30 (255.255.255.252). Hay que unificar en los dos equipos.
+      # Aqui dejo /30, que es lo correcto para un enlace punto a punto,
+      # PERO el equipo real sigue en /29 -> hay que corregirlo en Gaia.
+      network_mask: "255.255.255.252"
+
+    - name: eth4                      # OOB, VLAN 920
+      ip_address: "192.168.92.12"
+      network_mask: "255.255.255.0"
+
+    # --- Interior: bond con VLANs hacia ArubaCX ---
+    # Este equipo usa 'bond2' y cp-gw-b usa 'bond1'. La topologia del cluster en
+    # el SMS esta construida con el naming de ESTE equipo (bond2.x).
+    # Funciona asi (cluster formado, sin pnotes), aunque sea poco ortodoxo.
+    - name: bond2.10
+      ip_address: "192.168.10.3"
+      network_mask: "255.255.255.0"
+
+    - name: bond2.99
+      ip_address: "192.168.99.3"
+      network_mask: "255.255.255.0"

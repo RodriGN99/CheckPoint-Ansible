@@ -1,0 +1,5 @@
+---
+# Credenciales con las que Ansible entra a la Management API del SMS.
+# Los valores reales viven cifrados en group_vars/all/vault.yml.
+ansible_user: "{{ vault_cp_mgmt_api_user }}"
+ansible_password: "{{ vault_cp_mgmt_api_password }}"

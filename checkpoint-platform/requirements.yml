@@ -1,0 +1,7 @@
+---
+# Instalar en la VM de control Ansible:
+#   ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: check_point.mgmt
+    version: ">=6.9.0"
+  - name: check_point.gaia

@@ -1,0 +1,21 @@
+---
+# Conexion comun a las APIs de Check Point (httpapi).
+#
+# IMPORTANTE: 'ansible_network_os' NO se fija aqui a proposito.
+# El mismo host (el SMS) se ataca de dos formas distintas segun el playbook:
+#   - Management API  -> check_point.mgmt.checkpoint
+#   - SO Gaia         -> check_point.gaia.checkpoint
+# Fijarlo en group_vars obligaria a duplicar hosts en el inventario.
+# Se fija a nivel de PLAY, en cada playbook.
+
+ansible_httpapi_use_ssl: true
+ansible_httpapi_validate_certs: false   # lab: certificados autofirmados
+ansible_httpapi_port: 443
+
+# --- Datos de red del lab (referencia, no se consumen todavia) ---
+cp_net_mgmt_cidr: "192.168.90.0/24"     # red plana donde vive tambien la VM Ansible
+cp_net_mgmt_gw: "192.168.90.1"          # salida a Internet (nube "Net")
+cp_net_oob_cidr: "192.168.92.0/24"      # OOB, VLAN 920
+
+# El SIC y la gestion de los gateways van por la red 90 (eth0), no por OOB.
+cp_management_path: "90"

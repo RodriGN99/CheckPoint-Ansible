@@ -1,0 +1,32 @@
+---
+# CP-GW-B  ==  "CP Bound 1" en el diagrama EVE-NG
+# Datos tomados del Gaia Portal (Network Management > Network Interfaces).
+# Management Interface del equipo: eth0 (coherente con gestion por la red 90).
+cp_member:
+  name: "CP-GW-B"
+  eve_ng_label: "CP Bound 1"
+  ip_address: "192.168.90.172"        # IP principal: SIC y gestion por la red 90
+
+  interfaces:
+    - name: eth0                      # externa / red 90 (nube "Net")
+      ip_address: "192.168.90.172"
+      network_mask: "255.255.255.0"
+
+    - name: eth3                      # sync, cable directo contra cp-gw-a
+      ip_address: "10.255.255.2"
+      network_mask: "255.255.255.252"   # /30, este equipo ya esta bien
+
+    - name: eth4                      # OOB, VLAN 920
+      ip_address: "192.168.92.13"
+      network_mask: "255.255.255.0"
+
+    # --- Interior: bond con VLANs hacia ArubaCX ---
+    # Nombres FISICOS de este equipo: bond1.x.
+    # La topologia del cluster en el SMS usa el naming de cp-gw-a (bond2.x).
+    - name: bond1.10
+      ip_address: "192.168.10.2"
+      network_mask: "255.255.255.0"
+
+    - name: bond1.99
+      ip_address: "192.168.99.2"
+      network_mask: "255.255.255.0"
