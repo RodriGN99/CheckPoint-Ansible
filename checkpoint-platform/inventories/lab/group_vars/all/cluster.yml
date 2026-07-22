@@ -44,13 +44,22 @@ cp_cluster:
       network_mask: "255.255.255.0"
       anti_spoofing: false          # lab: desactivado para no cortar trafico de pruebas
 
+    # Sync: cable directo entre miembros, red 10.255.255.0/29.
+    # La IP y la mascara son las que el SMS ya tiene registradas (verificado con
+    # 00-discovery el 22/07/2026). Sin declararlas, cp_mgmt_simple_cluster las
+    # borraria al ser declarativo.
+    # Nota: la mascara de CP-GW-B estaba en /30 en Gaia y se unifico a /29, asi
+    # que ahora los dos miembros y el SMS coinciden.
     - name: eth3
-      interface_type: sync          # cable directo entre miembros (10.255.255.0/30)
+      interface_type: sync
+      ip_address: "10.255.255.3"
+      network_mask: "255.255.255.248"   # /29
 
-    - name: eth4
-      interface_type: private       # OOB (VLAN 920), solo gestion
-      # Confirmado: no aparece en 'cphaprob -a if' porque ClusterXL no
-      # monitoriza las interfaces private. Es lo esperado.
+    # eth4 (OOB, VLAN 920) NO se declara a proposito.
+    # Existe en Gaia (192.168.92.12 / .13) pero el objeto cluster del SMS no la
+    # tiene, y esa interfaz no esta conectada a nada. Declararla aqui NO seria un
+    # no-op: la añadiria a la topologia del SMS. Se deja fuera para que este
+    # fichero calque el estado real del SMS.
 
     # --- Interior hacia ArubaCX ---
     # Nombres y VIPs confirmados con 'cphaprob -a if' en CP-GW-A:
