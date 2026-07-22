@@ -90,7 +90,8 @@ checkpoint-platform/
 │   └── host_vars/{sms,cp-gw-a,cp-gw-b}.yml
 └── playbooks/
     ├── 00-discovery.yml                # READ-ONLY
-    └── 01-objects.yml                  # primera escritura: objetos + publish (reversible)
+    ├── 01-objects.yml                  # primera escritura: objetos + publish (reversible)
+    └── 02-cluster.yml                  # ClusterXL declarativo — LANZAR SIEMPRE CON --check
 ```
 
 > El grupo se llama `[management]` (no `[sms]`) para no colisionar con el host
@@ -128,6 +129,10 @@ ansible-playbook playbooks/00-discovery.yml
 ansible-playbook playbooks/01-objects.yml
 #    rollback:
 ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent
+
+# 6. Cluster: SIEMPRE en simulacion primero. Solo ejecutar si da changed=0.
+ansible-playbook playbooks/02-cluster.yml --check
+ansible-playbook playbooks/02-cluster.yml
 ```
 
 `00-discovery.yml` **no cambia nada**: valida el camino Ansible -> Management API

@@ -1,0 +1,83 @@
+---
+# =============================================================================
+# 02 - CLUSTER ClusterXL  (LA PIEZA PELIGROSA — LEER ANTES DE LANZAR)
+# =============================================================================
+# `cp_mgmt_simple_cluster` es DECLARATIVO. Gestiona un cluster que YA EXISTE y
+# que ahora mismo esta EN PRODUCCION en el lab (CP-CLUSTER-HA). Si la definicion
+# de group_vars/all/cluster.yml no calca lo que hay en el SMS, este playbook
+# REESCRIBE la topologia de un cluster que funciona.
+#
+# LANZAR SIEMPRE PRIMERO EN SIMULACION:
+#   cd CheckPoint-Ansible/checkpoint-platform
+#   ansible-playbook playbooks/02-cluster.yml --check
+#
+# Solo si el --check reporta changed=0, lanzarlo de verdad:
+#   ansible-playbook playbooks/02-cluster.yml
+#
+# Y antes de cualquiera de los dos, confirmar que cluster.yml sigue calcando el
+# SMS relanzando el descubrimiento:
+#   ansible-playbook playbooks/00-discovery.yml
+#
+# -----------------------------------------------------------------------------
+# POR QUE NO SE DEFINE 'members'
+# -----------------------------------------------------------------------------
+# El modulo acepta un parametro 'members' (interfaces de cada miembro + la clave
+# SIC one_time_password). AQUI NO SE ENVIA, a proposito.
+#
+# El helper api_call del modulo compara contra el SMS con una llamada 'equals'
+# que solo evalua LOS CAMPOS QUE SE LE MANDAN. Al omitir 'members', los miembros
+# ni se comparan ni se modifican: quedan intactos.
+#
+# Enviarlos exigiria ademas la clave SIC (vault_cp_sic_key, hoy sin rellenar) y
+# reescribiria la pertenencia al cluster. Los miembros se gestionan a mano.
+# =============================================================================
+
+- name: "02 | ClusterXL: alinear la definicion con el SMS"
+  hosts: sms
+  gather_facts: false
+  connection: httpapi
+  vars:
+    ansible_network_os: check_point.mgmt.checkpoint
+
+  tasks:
+
+    - name: "Aviso si se lanza fuera de modo simulacion"
+      ansible.builtin.debug:
+        msg: >-
+          ATENCION: ejecucion REAL (sin --check) sobre {{ cp_cluster.name }}.
+          Si cluster.yml no calca el SMS, esto reescribe la topologia.
+      when: not ansible_check_mode
+
+    - name: "Cluster {{ cp_cluster.name }}"
+      check_point.mgmt.cp_mgmt_simple_cluster:
+        name: "{{ cp_cluster.name }}"
+        ip_address: "{{ cp_cluster.ip_address }}"
+        cluster_mode: "{{ cp_cluster.cluster_mode }}"
+        cluster_version: "{{ cp_cluster.cluster_version }}"
+        interfaces: "{{ cp_cluster.interfaces }}"
+
+        # Blades. Se envian explicitamente para que 'equals' los compare.
+        firewall: "{{ cp_cluster.blades.firewall }}"
+        ips: "{{ cp_cluster.blades.ips }}"
+        application_control: "{{ cp_cluster.blades.application_control }}"
+        url_filtering: "{{ cp_cluster.blades.url_filtering }}"
+        anti_bot: "{{ cp_cluster.blades.anti_bot }}"
+        anti_virus: "{{ cp_cluster.blades.anti_virus }}"
+        threat_emulation: "{{ cp_cluster.blades.threat_emulation }}"
+
+        state: present
+        auto_publish_session: false   # el publish se hace abajo, y solo si cambia
+      register: cp_cluster_result
+
+    - name: "Publicar (solo si hubo cambios y NO es simulacion)"
+      check_point.mgmt.cp_mgmt_publish:
+      when:
+        - cp_cluster_result is changed
+        - not ansible_check_mode
+
+    - name: "Resultado"
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'SIMULACION' if ansible_check_mode else 'EJECUCION REAL' }} |
+          changed={{ cp_cluster_result.changed }} |
+          {{ cp_cluster_result.message | default('sin mensaje') }}
