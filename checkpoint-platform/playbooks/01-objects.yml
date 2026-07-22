@@ -5,12 +5,18 @@
 # Crea objetos NUEVOS (hosts y redes) en el SMS y publica. No modifica nada
 # existente. Estrena el ciclo completo de escritura: conectar -> crear -> publish.
 #
+# TODOS los comandos se lanzan desde CheckPoint-Ansible/checkpoint-platform/
+# (es donde vive ansible.cfg, que ya define inventory = inventories/lab/hosts.ini;
+# por eso no hace falta pasar '-i').
+#
 # Uso normal (crear):
-#   ansible-playbook -i inventories/lab/hosts.ini playbooks/01-objects.yml --ask-vault-pass
+#   cd CheckPoint-Ansible/checkpoint-platform
+#   ansible-playbook playbooks/01-objects.yml
 #
 # Rollback (borrar lo creado):
-#   ansible-playbook -i inventories/lab/hosts.ini playbooks/01-objects.yml \
-#     -e cp_objects_state=absent --ask-vault-pass
+#   ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent
+#
+# Si el vault.yml esta cifrado con ansible-vault, anadir --ask-vault-pass.
 #
 # Notas:
 #   - 'auto_publish_session: false' -> los cambios quedan en la sesion privada

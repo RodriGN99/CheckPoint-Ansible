@@ -9,8 +9,9 @@
 # rango 10.250.250.0/24 elegidos a proposito para no colisionar con objetos
 # reales del SMS.
 #
-# Reversion: relanzar el playbook con el estado a 'absent':
-#   ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent --ask-vault-pass
+# Reversion: relanzar el playbook con el estado a 'absent', desde
+# CheckPoint-Ansible/checkpoint-platform/:
+#   ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent
 
 # Estado declarativo de los objetos de prueba: present | absent
 cp_objects_state: present
