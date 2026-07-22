@@ -1,0 +1,68 @@
+---
+# =============================================================================
+# 01 - OBJETOS (primera escritura real, inocua y reversible)
+# =============================================================================
+# Crea objetos NUEVOS (hosts y redes) en el SMS y publica. No modifica nada
+# existente. Estrena el ciclo completo de escritura: conectar -> crear -> publish.
+#
+# Uso normal (crear):
+#   ansible-playbook -i inventories/lab/hosts.ini playbooks/01-objects.yml --ask-vault-pass
+#
+# Rollback (borrar lo creado):
+#   ansible-playbook -i inventories/lab/hosts.ini playbooks/01-objects.yml \
+#     -e cp_objects_state=absent --ask-vault-pass
+#
+# Notas:
+#   - 'auto_publish_session: false' -> los cambios quedan en la sesion privada
+#     hasta el 'publish' explicito del final. Asi el publish es una sola operacion
+#     y solo se lanza si hubo cambios.
+#   - Los objetos y el estado (present|absent) se definen en
+#     group_vars/all/objects.yml.
+# =============================================================================
+
+- name: "01 | Crear/borrar objetos de prueba y publicar"
+  hosts: sms
+  gather_facts: false
+  connection: httpapi
+  vars:
+    ansible_network_os: check_point.mgmt.checkpoint
+
+  tasks:
+
+    - name: "Objetos host ({{ cp_objects_state }})"
+      check_point.mgmt.cp_mgmt_host:
+        name: "{{ item.name }}"
+        ip_address: "{{ item.ip_address | default(omit) }}"
+        color: "{{ item.color | default(omit) }}"
+        comments: "{{ item.comments | default(omit) }}"
+        state: "{{ cp_objects_state }}"
+        auto_publish_session: false
+      loop: "{{ cp_hosts | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: cp_host_result
+
+    - name: "Objetos red ({{ cp_objects_state }})"
+      check_point.mgmt.cp_mgmt_network:
+        name: "{{ item.name }}"
+        subnet: "{{ item.subnet | default(omit) }}"
+        mask_length: "{{ item.mask_length | default(omit) }}"
+        color: "{{ item.color | default(omit) }}"
+        comments: "{{ item.comments | default(omit) }}"
+        state: "{{ cp_objects_state }}"
+        auto_publish_session: false
+      loop: "{{ cp_networks | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: cp_net_result
+
+    - name: "Publicar cambios (solo si hubo modificaciones)"
+      check_point.mgmt.cp_mgmt_publish:
+      when: (cp_host_result is changed) or (cp_net_result is changed)
+
+    - name: "Resumen"
+      ansible.builtin.debug:
+        msg: >-
+          Estado solicitado: {{ cp_objects_state }} |
+          hosts cambiados: {{ cp_host_result.changed }} |
+          redes cambiadas: {{ cp_net_result.changed }}

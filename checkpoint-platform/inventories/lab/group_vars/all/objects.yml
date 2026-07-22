@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# Objetos de prueba para estrenar el ciclo de escritura (crear -> publish).
+# =============================================================================
+# Los consume playbooks/01-objects.yml, que ataca al SMS (hosts: sms). Por eso
+# viven en group_vars/all (igual que cluster.yml): el play necesita verlos.
+#
+# Son INOCUOS: objetos NUEVOS, no tocan nada existente. Nombres 'ans-test-*' y
+# rango 10.250.250.0/24 elegidos a proposito para no colisionar con objetos
+# reales del SMS.
+#
+# Reversion: relanzar el playbook con el estado a 'absent':
+#   ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent --ask-vault-pass
+
+# Estado declarativo de los objetos de prueba: present | absent
+cp_objects_state: present
+
+# --- Objetos de host ---
+cp_hosts:
+  - name: "ans-test-host-1"
+    ip_address: "10.250.250.10"
+    color: "green"
+    comments: "Objeto de prueba creado por Ansible (paso 01-objects)."
+
+# --- Objetos de red ---
+cp_networks:
+  - name: "ans-test-net-1"
+    subnet: "10.250.250.0"
+    mask_length: 24
+    color: "blue"
+    comments: "Red de prueba creada por Ansible (paso 01-objects)."
