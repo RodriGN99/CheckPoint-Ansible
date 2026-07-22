@@ -28,7 +28,7 @@ Origen: Gaia Portal de cada equipo + `cphaprob -a if` en CP-GW-A.
 |---|---|---|---|---|---|
 | Management | `sms` | 192.168.90.170 | — | 192.168.92.11 *(en eth3)* | SMS |
 | Miembro A | `cp-gw-a` | 192.168.90.171 | 10.255.255.1 **/29** | 192.168.92.12 | **CP Bound 2** |
-| Miembro B | `cp-gw-b` | 192.168.90.172 | 10.255.255.2 **/29** | 192.168.92.13 | **CP Bound 1** |
+| Miembro B | `cp-gw-b` | 192.168.90.172 | 10.255.255.2 **/30** | 192.168.92.13 | **CP Bound 1** |
 | VIP cluster | — | **192.168.90.173** | — | — | — |
 
 Interior (bond hacia ArubaCX):
@@ -44,10 +44,10 @@ Puntos que despistan y conviene tener presentes:
   diagrama va al reves de lo que sugiere el nombre.
 - La **topologia del cluster usa el naming de CP-GW-A (`bond2.x`)**, aunque
   CP-GW-B tenga fisicamente `bond1.x`. Funciona asi.
-- **`eth4` no aparece en `cphaprob -a if`**. Al principio se atribuyo a que
-  estaba como `private` (ClusterXL no monitoriza esas). El descubrimiento del
-  22/07/2026 muestra que la razon es mas simple: **el SMS no conoce `eth4` en
-  absoluto**, ni en el objeto cluster ni en ningun miembro. Ver punto 11.
+- **`eth4` existe en los equipos pero no en el SMS.** En Gaia esta configurada y
+  activa (`192.168.92.12` en CP-GW-A, `192.168.92.13` en CP-GW-B, OOB), pero el
+  objeto cluster del SMS **no la incluye** en su topologia. Que no aparezca en
+  `cphaprob -a if` es coherente con eso. Ver punto 11.
 - **SIC y gestion van por la red 90** (Management Interface = `eth0`), no por OOB.
 
 ---
@@ -79,10 +79,18 @@ Dos cosas mejorables, ninguna bloqueante:
 Desajuste menor entre miembros, sin efecto demostrado: nombres de bond distintos
 (`bond2` vs `bond1`).
 
-> **CORREGIDO (22/07/2026):** este documento afirmaba tambien que la mascara de
-> sync era distinta (`/29` vs `/30`). **Es falso.** El descubrimiento contra el
-> SMS devuelve `/29` en los dos miembros: `CP-GW-A 10.255.255.1/29` y
-> `CP-GW-B 10.255.255.2/29`. Ese desajuste no existe.
+Y la **mascara de sync distinta** (`/29` en CP-GW-A, `/30` en CP-GW-B), que sigue
+vigente: verificado en el Gaia Portal de cada equipo el 22/07/2026
+(`eth3 = 255.255.255.248` en A, `255.255.255.252` en B).
+
+> **AVISO — el SMS miente sobre este dato.** Durante la sesion del 22/07/2026 se
+> "corrigio" este punto diciendo que ambos miembros eran `/29`, porque es lo que
+> devuelve `cp_mgmt_simple_cluster_facts`. **Esa correccion era erronea y queda
+> revertida.** El SMS **normaliza** la mascara de sync y almacena `/29` en los dos
+> miembros, mientras que CP-GW-B tiene realmente `/30` en Gaia.
+>
+> **Leccion:** para datos de interfaz a nivel de SO, el SMS no es fuente de
+> verdad. Hay que contrastar contra el Gaia Portal o `clish`. Ver punto 11.
 
 ---
 
@@ -272,16 +280,52 @@ un `eth4` que no existe, reescribiendo un cluster que ahora mismo funciona.
    El SMS tiene `10.255.255.3/29` a nivel de cluster; `cluster.yml` declara `eth3`
    como `sync` **sin IP**.
 
-2. **`eth4`: esta en `cluster.yml` pero el SMS no lo conoce.**
+2. **`eth4`: esta en `cluster.yml` y en los equipos, pero NO en el SMS.**
    ```
    Interfaces del cluster en el SMS: ['bond2.10', 'bond2.99', 'eth0', 'eth3']
    CP-GW-A: ['bond2.10','bond2.99','eth0','eth3']   <- sin eth4
    CP-GW-B: ['bond1.10','bond1.99','eth0','eth3']   <- sin eth4
    ```
-   Puede existir en Gaia a nivel de SO, pero **el objeto cluster del SMS no lo
-   tiene**. Esta es la razon real de que no salga en `cphaprob -a if` (ver punto 2).
+   En Gaia **si existe** (`192.168.92.12` / `192.168.92.13`, OOB), pero el objeto
+   cluster del SMS no la incluye. Declararla en `cluster.yml` no es un no-op:
+   **la añadiria** a la topologia del SMS.
+
+### Divergencia SMS vs equipo real (importante)
+
+El SMS **no es fuente de verdad** para datos de interfaz a nivel de SO. Caso
+concreto detectado el 22/07/2026 comparando el Gaia Portal de cada miembro con
+lo que devuelve `cp_mgmt_simple_cluster_facts`:
+
+| Dato | Gaia (real) | SMS |
+|---|---|---|
+| `eth3` CP-GW-A | `10.255.255.1` **/29** | /29 |
+| `eth3` CP-GW-B | `10.255.255.2` **/30** | **/29** ← no coincide |
+| `eth4` | existe en ambos (OOB) | **no existe** |
+
+Durante la sesion se llego a "corregir" el documento afirmando que ambos miembros
+eran `/29` (porque es lo que dice el SMS). **Era un error**: el SMS normaliza ese
+campo. La afirmacion original del documento (`/29` vs `/30`) era correcta y queda
+restaurada.
+
+**Metodo a seguir:** contrastar SIEMPRE contra Gaia (Portal o `clish`) antes de
+dar por buena la topologia que reporta el SMS.
+
+### Aviso de laboratorio: hay mas de un par de Check Points
+
+En el lab conviven al menos dos parejas de gateways con **los mismos hostnames**
+(`CP-GW-A` / `CP-GW-B`):
+
+- **`192.168.90.171` / `.172`** → los miembros **reales** de `CP-CLUSTER-HA`.
+  Tienen bonds (`bond2.x` / `bond1.x`) y `eth4` OOB.
+- **`192.168.90.181` / `.182`** → **otra pareja distinta**, sin bonds, con `eth1`
+  en `192.168.100.252/253`. MACs de otro rango (`50:01:xx` frente a `50:00:xx`).
+
+Comprobacion rapida para no confundirlos: la VIP `.173` responde con **la misma
+MAC que el miembro ACTIVE** (hoy `.172`, MAC `50:00:00:09:00:00`).
+
+**No usar los `.181/.182` como referencia para `cluster.yml`.**
 
 **Conclusion:** el orden "descubrimiento antes que cluster" (punto 8) ha hecho
 exactamente su trabajo. **No lanzar el paso 3 hasta corregir `cluster.yml`.**
-Correccion pendiente por parte del usuario: añadir `10.255.255.3/29` a `eth3` y
-quitar `eth4`.
+Correccion pendiente por parte del usuario, decidiendo antes que se quiere como
+estado final (el SMS y los equipos no coinciden, asi que hay que elegir).
