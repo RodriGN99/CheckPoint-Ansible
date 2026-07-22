@@ -28,7 +28,7 @@ Origen: Gaia Portal de cada equipo + `cphaprob -a if` en CP-GW-A.
 |---|---|---|---|---|---|
 | Management | `sms` | 192.168.90.170 | — | 192.168.92.11 *(en eth3)* | SMS |
 | Miembro A | `cp-gw-a` | 192.168.90.171 | 10.255.255.1 **/29** | 192.168.92.12 | **CP Bound 2** |
-| Miembro B | `cp-gw-b` | 192.168.90.172 | 10.255.255.2 **/30** | 192.168.92.13 | **CP Bound 1** |
+| Miembro B | `cp-gw-b` | 192.168.90.172 | 10.255.255.2 **/29** *(era /30, corregido 22/07)* | 192.168.92.13 | **CP Bound 1** |
 | VIP cluster | — | **192.168.90.173** | — | — | — |
 
 Interior (bond hacia ArubaCX):
@@ -65,55 +65,39 @@ Dos cosas mejorables, ninguna bloqueante:
 1. **Licencias de CP-GW-A.** Es la causa del estado rojo de CP-CLUSTER-HA y
    CP-GW-A en SmartConsole. No es un problema de topologia.
 
-2. **Flapeo: 135 failovers** entre el 1 y el 21 de julio de 2026. Motivo del
-   ultimo: `Interface bond2.10 is down (Cluster Control Protocol packets are
-   not received)`.
-   **Causa probable: el CCP va en multicast**, no unicast — `cphaprob state`
-   reporta *"High Availability (Active Up) with **IGMP Membership**"*. Multicast
-   sobre los switches virtuales de EVE-NG + ArubaCX es fragil (sin IGMP querier,
-   o con snooping podando), y encaja con que se pierda justo en `bond2.10`, el
-   camino con mas conmutacion por medio.
-   Se cambiaria con `cphaconf set_ccp unicast` en cada miembro (verificar la
-   sintaxis exacta en la version antes de aplicar).
-
-   > **LINEA BASE (22/07/2026): `cphaprob state` = 193 failovers.** Medido justo
-   > **antes** de unificar la mascara de sync a `/29` (CP-GW-B estaba en `/30`).
-   > El ritmo era alto: 58 failovers mas en un solo dia sobre los 135 previos.
-   >
-   > **Comparar contra 193** la proxima vez que se mire `cphaprob state`:
-   > - Si se ha estancado → la mascara inconsistente era (al menos en parte) la causa.
-   > - Si sigue subiendo → queda el **CCP en multicast** como sospechoso principal,
-   >   que era la hipotesis original y sigue sin tocarse.
+2. **Flapeo del cluster.** Ver el punto 12, que sustituye por completo el
+   diagnostico que este documento daba antes.
 
 Desajuste menor entre miembros, sin efecto demostrado: nombres de bond distintos
-(`bond2` vs `bond1`).
+(`bond2` vs `bond1`). Verificado el 22/07/2026: solo cambia el ID del bond; la
+configuracion interna es identica en los dos miembros.
 
-Y la **mascara de sync distinta** (`/29` en CP-GW-A, `/30` en CP-GW-B), que sigue
-vigente: verificado en el Gaia Portal de cada equipo el 22/07/2026
-(`eth3 = 255.255.255.248` en A, `255.255.255.252` en B).
+**Mascara de sync: RESUELTA el 22/07/2026.** CP-GW-B estaba en `/30` y CP-GW-A en
+`/29`. El usuario la unifico a `/29` en ambos. Ojo: **esto NO era la causa del
+flapeo** — ver punto 12, donde se descarta con evidencia.
 
-> **AVISO — el SMS miente sobre este dato.** Durante la sesion del 22/07/2026 se
-> "corrigio" este punto diciendo que ambos miembros eran `/29`, porque es lo que
-> devuelve `cp_mgmt_simple_cluster_facts`. **Esa correccion era erronea y queda
-> revertida.** El SMS **normaliza** la mascara de sync y almacena `/29` en los dos
-> miembros, mientras que CP-GW-B tiene realmente `/30` en Gaia.
+> **LECCION IMPORTANTE — el SMS normaliza este dato.** Durante la sesion se
+> "corrigio" el documento afirmando que ambos miembros eran `/29`, porque es lo
+> que devuelve `cp_mgmt_simple_cluster_facts`. **Era falso:** el SMS almacenaba
+> `/29` para los dos mientras CP-GW-B tenia realmente `/30` en Gaia.
 >
-> **Leccion:** para datos de interfaz a nivel de SO, el SMS no es fuente de
-> verdad. Hay que contrastar contra el Gaia Portal o `clish`. Ver punto 11.
+> **Para datos de interfaz a nivel de SO, el SMS no es fuente de verdad.**
+> Contrastar siempre contra el Gaia Portal o `clish`. Ver punto 11.
 
 ---
 
 ## 4. Correcciones al documento de contexto anterior
 
 Verificado contra la documentacion oficial de `check_point.mgmt` 6.9.0 y contra
-el lab. **El documento anterior tenia cuatro cosas mal:**
+el lab. **El documento anterior tenia TRES cosas mal** (la cuarta fila resulto
+ser un error de ESTE documento, no del anterior):
 
 | Documento anterior | Realidad |
 |---|---|
 | `cp_mgmt_api_call` como escape genérico | **No existe** (404 en la doc oficial) |
 | `cluster-xl-ls-unicast` | `cluster-ls-unicast` |
 | `version:` en `simple_cluster` | `cluster_version:` |
-| *"En R81.20 el CCP es unicast por defecto"* | **Este cluster va en multicast** (IGMP Membership) |
+| ~~*"En R81.20 el CCP es unicast por defecto"*~~ | ⚠️ **El documento anterior TENIA RAZON.** Ver punto 12 |
 
 Modulos confirmados como existentes: `cp_mgmt_simple_cluster`,
 `cp_mgmt_simple_gateway_facts`, `cp_mgmt_simple_cluster_facts`,
@@ -130,8 +114,11 @@ Modulos confirmados como existentes: `cp_mgmt_simple_cluster`,
   e `install-policy` cortan la conexion httpapi a mitad.
 - **`cluster.yml` vive en `group_vars/all`**, no en `gateways`: el objeto cluster
   se crea atacando al **SMS**, y ese play necesita ver esas vars.
-- **`ansible-vault` desde el dia uno.** El `vault.yml` cifrado si se commitea; la
-  contrasena del vault (`.vault_pass`) nunca — esta en `.gitignore`.
+- ~~**`ansible-vault` desde el dia uno.**~~ **REVISADO el 22/07/2026:** se decidio
+  dejar el `vault.yml` **en claro y FUERA de git** (`.gitignore`), en vez de
+  cifrarlo y commitearlo. Son credenciales de lab desechables y se gestionan a
+  mano en la VM Ansible. Por eso los comandos no llevan `--ask-vault-pass`.
+  Si algun dia se cifra, hay que volver a añadir ese flag.
 - **Orden de trabajo: descubrimiento → objetos → cluster.** Ver punto 7.
 
 ---
@@ -160,14 +147,14 @@ con el equipo; en este lab el documento de partida fallaba en 4 puntos.
 ## 7. Estructura creada
 
 ```
-Ansible/checkpoint-platform/
-├── ansible.cfg                         # timeouts httpapi ampliados
+checkpoint-platform/
+├── ansible.cfg                         # timeouts httpapi + stdout_callback corregido
 ├── requirements.yml                    # check_point.mgmt / check_point.gaia
-├── .gitignore                          # .vault_pass, discovery/
+├── .gitignore                          # .vault_pass, vault.yml, discovery/
 ├── README.md
 ├── CONTEXTO-SESION.md                  # este fichero
 ├── inventories/lab/
-│   ├── hosts.ini                       # [sms] [gateways] [checkpoint:children]
+│   ├── hosts.ini                       # [management] [gateways] [checkpoint:children]
 │   ├── group_vars/
 │   │   ├── all/
 │   │   │   ├── main.yml                # conexion httpapi + redes del lab
@@ -179,7 +166,8 @@ Ansible/checkpoint-platform/
 │   └── host_vars/{sms,cp-gw-a,cp-gw-b}.yml
 └── playbooks/
     ├── 00-discovery.yml                # READ-ONLY
-    └── 01-objects.yml                  # objetos + publish (reversible)
+    ├── 01-objects.yml                  # objetos + publish (reversible)
+    └── 02-cluster.yml                  # ClusterXL — LANZAR SIEMPRE CON --check
 ```
 
 **Nota (actualizada 22/07/2026):** el YAML **ya esta validado de verdad**. En la
@@ -338,3 +326,119 @@ MAC que el miembro ACTIVE** (hoy `.172`, MAC `50:00:00:09:00:00`).
 exactamente su trabajo. **No lanzar el paso 3 hasta corregir `cluster.yml`.**
 Correccion pendiente por parte del usuario, decidiendo antes que se quiere como
 estado final (el SMS y los equipos no coinciden, asi que hay que elegir).
+
+---
+
+## 12. Flapeo del cluster: diagnostico corregido (22/07/2026)
+
+**Esta seccion sustituye al diagnostico anterior, que era erroneo.** Las dos
+hipotesis que manejaba el documento estan ahora DESCARTADAS por evidencia.
+
+### Hipotesis 1 (DESCARTADA): "el CCP va en multicast"
+
+El documento deducia esto de que `cphaprob state` reporta
+*"High Availability (Active Up) with IGMP Membership"*, y proponia arreglarlo con
+`cphaconf set_ccp unicast`. **Las tres partes de ese razonamiento son falsas:**
+
+- **`set_ccp` no existe en R81.20.** Buscado en las 378 paginas de la guia oficial
+  de ClusterXL R81.20: cero apariciones. Los unicos `cphaconf ccp_*` documentados
+  son `ccp_encrypt` y `ccp_encrypt_key`, que son de **cifrado**, no de transporte.
+  El comando `set_ccp {auto|unicast|multicast|broadcast}` es de R80.x.
+- **En R81.x el CCP ya va siempre en unicast.** La guia de R81.10 lo dice literal:
+  *"In R81.10, the CCP always runs in the unicast mode."* Ya no es configurable.
+- **`"with IGMP Membership"` es la salida NORMAL.** La propia guia de R81.20 usa
+  esa cadena exacta en su ejemplo de un cluster sano (pag. 252). No indica nada
+  anomalo ni que el CCP vaya en multicast.
+
+**No lanzar `cphaconf set_ccp`.** No existe y la causa que pretendia arreglar no
+es real.
+
+### Hipotesis 2 (DESCARTADA): "la mascara de sync /29 vs /30"
+
+Al caerse la hipotesis del multicast, la mascara inconsistente parecia el
+candidato natural. **`cphaprob show_failover` la descarta**: en los 20 failovers
+registrados, **ni uno solo** menciona `eth3` (sync) ni `eth0`. Si el sync fuera
+el problema, apareceria en los motivos.
+
+Unificarla a `/29` fue correcto como higiene, pero **no explica el flapeo**.
+
+### El patron real: solo los bonds
+
+Salida de `cphaprob show_failover` en CP-GW-A (22/07/2026):
+
+```
+Failover counter: 193      (reset: Wed Jul 1 09:00:14 2026, reboot)
+Ultimo evento:    Wed Jul 22 11:01:42 2026
+Motivo:           Interface bond2.99 is down
+                  (Cluster Control Protocol packets are not received)
+```
+
+Los 20 failovers del historial son **todos** en `bond2.10`, `bond2.99` o `bond2`,
+siempre con el mismo motivo: no se reciben paquetes CCP. **Nunca en `eth3` ni en
+`eth0`.**
+
+La guia de ClusterXL R81.20 (pag. 179) describe exactamente este sintoma:
+
+> *"If a Bond interface goes down on one Cluster Member... the peer Cluster
+> Members **stop receiving the CCP packets on that Bond interface** and cannot
+> probe the local network to determine that their Bond interface is really
+> working."*
+
+### La configuracion de bonds en Check Point esta BIEN
+
+Verificado el 22/07/2026 con `cphaprob show_bond` y `show bonding groups` en
+ambos miembros. Son identicos:
+
+| | CP-GW-A | CP-GW-B |
+|---|---|---|
+| Modo | `8023AD` (LACP) | `8023AD` (LACP) |
+| Subordinadas | `eth1`, `eth2` | `eth1`, `eth2` |
+| xmit-hash-policy | `layer2` | `layer2` |
+| lacp-rate | `slow` | `slow` |
+| Timers | up/down-delay 200, mii 100 | idem |
+| Estado | UP, 2/2 slaves link up | UP, 2/2 slaves link up |
+
+La guia exige que las subordinadas se añadan **en el mismo orden** en todos los
+miembros (pag. 166): **se cumple**. Solo difiere el ID del bond (`bond2` vs
+`bond1`), que es cosmetico.
+
+**Conclusion: el lado Check Point no es el problema.** Hay que mirar hacia fuera.
+
+### Sospechoso actual: LACP sobre EVE-NG + ArubaCX
+
+Queda como hipotesis principal, **aun sin verificar**, que el problema este en el
+lado del switch / la virtualizacion:
+
+- Los bonds usan **802.3ad (LACP)**, que exige que el otro extremo tenga un LAG
+  configurado **y que negocie LACPDUs correctamente**. Los switches virtuales de
+  EVE-NG no siempre lo hacen bien.
+- **Riesgo concreto a comprobar en el ArubaCX:** que las interfaces de LOS DOS
+  gateways esten metidas en el **mismo LAG**, en vez de en **dos LAGs separados**
+  (uno por gateway). Ese error provoca exactamente este cuadro: MACs saltando
+  entre puertos y CCP perdiendose.
+- `lacp-rate slow` (LACPDU cada 30s, timeout 90s) es lento para detectar
+  problemas; `fast` daria deteccion mas rapida, pero es sintoma, no causa.
+
+### Dato temporal a confirmar
+
+El ultimo failover fue a las **11:01:42** del 22/07. A las **21:24** del mismo dia
+seguia sin haber ninguno: **mas de 10 horas limpias**, cuando el ritmo previo era
+de 20 failovers en 4,5 horas (uno cada ~13 min). **Algo corto el flapeo sobre las
+11:00.** No esta confirmado que fuera el cambio de mascara — se desconoce la hora
+exacta en que se aplico — pero el cambio de regimen es real.
+
+### Como medir a partir de ahora
+
+El contador de 193 arrastra tres semanas. Para medir limpio:
+
+```bash
+cphaprob -reset -c show_failover     # resetear el contador
+cphaprob show_failover               # historial CON el motivo de cada failover
+cphaprob -l 20 show_failover         # los ultimos 20
+cphaprob syncstat                    # estadisticas de Delta Sync
+cphaprob igmp                        # estado real de la membresia IGMP
+cphaprob show_bond <bond>            # estado del bond
+cphaprob -a if                       # interfaces monitorizadas
+```
+
+**Linea base historica: 193 failovers** entre el 01/07 (reboot) y el 22/07/2026.
