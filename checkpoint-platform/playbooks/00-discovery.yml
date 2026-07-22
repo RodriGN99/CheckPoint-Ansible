@@ -8,8 +8,13 @@
 #   1. Validar el camino  VM Ansible -> Management API del SMS (192.168.90.170).
 #   2. Ver que hay ya creado en el SMS: gateways, clusters y paquetes de politica.
 #
-# Uso:
-#   ansible-playbook playbooks/00-discovery.yml --ask-vault-pass
+# Uso (desde CheckPoint-Ansible/checkpoint-platform/, donde vive ansible.cfg;
+# este ya define inventory = inventories/lab/hosts.ini, asi que no hace falta '-i'):
+#   cd CheckPoint-Ansible/checkpoint-platform
+#   ansible-playbook playbooks/00-discovery.yml --syntax-check
+#   ansible-playbook playbooks/00-discovery.yml
+#
+# Si el vault.yml esta cifrado con ansible-vault, anadir --ask-vault-pass.
 #
 # Si falla la conexion, lo habitual es que la Management API no acepte llamadas
 # desde la IP de la VM Ansible. En el SMS:

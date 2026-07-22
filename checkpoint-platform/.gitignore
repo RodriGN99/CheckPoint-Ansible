@@ -1,0 +1,16 @@
+# --- Secretos: NUNCA se suben ---
+# Contrasena del ansible-vault
+.vault_pass
+
+# vault.yml en claro (credenciales del lab). Se gestiona a mano en la VM Ansible.
+vault.yml
+
+# --- Salidas de descubrimiento (read-only) ---
+discovery/
+
+# --- Ruido habitual ---
+*.retry
+*.log
+__pycache__/
+*.pyc
+.DS_Store

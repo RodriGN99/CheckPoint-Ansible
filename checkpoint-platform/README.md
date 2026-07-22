@@ -73,35 +73,61 @@ El cluster esta formado y operativo. Lo de abajo son mejoras, no fallos:
 
 ```
 checkpoint-platform/
-├── ansible.cfg
+├── ansible.cfg                         # define inventory -> no hace falta pasar '-i'
 ├── requirements.yml                    # colecciones check_point.mgmt / check_point.gaia
+├── .gitignore                          # .vault_pass, vault.yml, discovery/
 ├── inventories/lab/
-│   ├── hosts.ini
+│   ├── hosts.ini                       # grupos [management] y [gateways]
 │   ├── group_vars/
 │   │   ├── all/
 │   │   │   ├── main.yml                # conexion httpapi + redes del lab
 │   │   │   ├── cluster.yml             # definicion logica del ClusterXL
-│   │   │   ├── vault.yml               # CIFRADO (lo creas tu, no esta en el repo)
+│   │   │   ├── objects.yml             # objetos de prueba + estado present/absent
+│   │   │   ├── vault.yml               # credenciales (lo creas tu, NO esta en el repo)
 │   │   │   └── vault.yml.example       # plantilla
-│   │   ├── sms.yml                     # credenciales Management API
+│   │   ├── management.yml              # credenciales Management API (grupo [management])
 │   │   └── gateways.yml                # credenciales Gaia
 │   └── host_vars/{sms,cp-gw-a,cp-gw-b}.yml
 └── playbooks/
-    └── 00-discovery.yml                # READ-ONLY
+    ├── 00-discovery.yml                # READ-ONLY
+    └── 01-objects.yml                  # primera escritura: objetos + publish (reversible)
 ```
+
+> El grupo se llama `[management]` (no `[sms]`) para no colisionar con el host
+> `sms`. Los plays siguen apuntando al host con `hosts: sms`.
 
 ## Puesta en marcha (en la VM Ansible)
 
+> **Todos los comandos se lanzan desde `CheckPoint-Ansible/checkpoint-platform/`.**
+> Es donde vive `ansible.cfg`, que ya define `inventory = inventories/lab/hosts.ini`.
+> Fuera de ese directorio Ansible no lee ese `ansible.cfg` y habria que pasar
+> `-i inventories/lab/hosts.ini` a mano.
+
 ```bash
+git clone https://github.com/RodriGN99/CheckPoint-Ansible.git
+cd CheckPoint-Ansible/checkpoint-platform
+
+# 1. Colecciones
 ansible-galaxy collection install -r requirements.yml
 
+# 2. Credenciales (vault.yml esta en .gitignore, no viene en el clon)
 cp inventories/lab/group_vars/all/vault.yml.example \
    inventories/lab/group_vars/all/vault.yml
-# editar con los valores reales, y despues:
-ansible-vault encrypt inventories/lab/group_vars/all/vault.yml
+# editar con los valores reales.
+# Opcional, si lo quieres cifrado (entonces anade --ask-vault-pass a los plays):
+#   ansible-vault encrypt inventories/lab/group_vars/all/vault.yml
 
+# 3. Validar sintaxis (no conecta con el lab)
 ansible-playbook playbooks/00-discovery.yml --syntax-check
-ansible-playbook playbooks/00-discovery.yml --ask-vault-pass
+ansible-playbook playbooks/01-objects.yml  --syntax-check
+
+# 4. Descubrimiento READ-ONLY (primero esto, siempre)
+ansible-playbook playbooks/00-discovery.yml
+
+# 5. Objetos: primera escritura real, reversible
+ansible-playbook playbooks/01-objects.yml
+#    rollback:
+ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent
 ```
 
 `00-discovery.yml` **no cambia nada**: valida el camino Ansible -> Management API
