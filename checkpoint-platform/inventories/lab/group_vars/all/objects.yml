@@ -20,7 +20,9 @@ cp_objects_state: present
 cp_hosts:
   - name: "ans-test-host-1"
     ip_address: "10.250.250.10"
-    color: "green"
+    # OJO: 'green' a secas NO es un color valido en Check Point. Los validos son
+    # 'dark green', 'forest green', 'light green', 'sea green'...
+    color: "dark green"
     comments: "Objeto de prueba creado por Ansible (paso 01-objects)."
 
 # --- Objetos de red ---

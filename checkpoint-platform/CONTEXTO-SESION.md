@@ -76,6 +76,15 @@ Dos cosas mejorables, ninguna bloqueante:
    Se cambiaria con `cphaconf set_ccp unicast` en cada miembro (verificar la
    sintaxis exacta en la version antes de aplicar).
 
+   > **LINEA BASE (22/07/2026): `cphaprob state` = 193 failovers.** Medido justo
+   > **antes** de unificar la mascara de sync a `/29` (CP-GW-B estaba en `/30`).
+   > El ritmo era alto: 58 failovers mas en un solo dia sobre los 135 previos.
+   >
+   > **Comparar contra 193** la proxima vez que se mire `cphaprob state`:
+   > - Si se ha estancado → la mascara inconsistente era (al menos en parte) la causa.
+   > - Si sigue subiendo → queda el **CCP en multicast** como sospechoso principal,
+   >   que era la hipotesis original y sigue sin tocarse.
+
 Desajuste menor entre miembros, sin efecto demostrado: nombres de bond distintos
 (`bond2` vs `bond1`).
 
