@@ -113,9 +113,15 @@ Nada instala politica todavia: `publish` solo consolida en la base de datos del
 SMS. **Los gateways no reciben nada hasta un `install-policy`**, que aun no
 existe en el proyecto.
 
-**`ans-test-rule-1` es un `accept any/any/any`.** Es una regla de humo. Mientras
-solo se publique no afecta al trafico, pero **instalar politica con ella dentro
-abre el firewall entero**. Borrarla antes de anadir cualquier `install-policy`.
+`cp_access_rules` esta **vacia a proposito**: `03-policy.yml` no crea nada por si
+solo. El ciclo se probo con una regla de humo (`accept any/any/any`) el
+23/07/2026 y se borro; quedo verificado crear -> idempotente -> borrar ->
+idempotente. **No volver a dejar un `accept any/any` declarado en el repo**: el
+dia que exista un `install-policy`, abre el firewall entero. El playbook avisa
+si detecta uno, pero solo avisa.
+
+Al anadir reglas reales, usar **`relative_position`** (`above`/`below` respecto a
+una regla con nombre), no `position: top|bottom`.
 
 ---
 

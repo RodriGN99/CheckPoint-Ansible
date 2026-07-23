@@ -83,7 +83,7 @@ checkpoint-platform/
 │   │   │   ├── main.yml                # conexion httpapi + redes del lab
 │   │   │   ├── cluster.yml             # definicion logica del ClusterXL
 │   │   │   ├── objects.yml             # objetos de prueba + estado present/absent
-│   │   │   ├── policy.yml              # reglas de acceso (contiene un accept any/any de prueba)
+│   │   │   ├── policy.yml              # reglas de acceso (hoy vacia a proposito)
 │   │   │   ├── vault.yml               # credenciales (lo creas tu, NO esta en el repo)
 │   │   │   └── vault.yml.example       # plantilla
 │   │   ├── management.yml              # credenciales Management API (grupo [management])
@@ -176,14 +176,26 @@ api restart && api status   # esperar "API readiness test SUCCESSFUL"
 > del SMS: la regla se ve en SmartConsole, pero los gateways **no la aplican**.
 > El trafico no cambia hasta un `install-policy`, que este repo no hace.
 
-Hoy solo hay una regla, `ans-test-rule-1`, que es un **`accept any/any/any`**
-creado como prueba de humo. Verificado idempotente (segunda pasada `changed=0`).
+**`cp_access_rules` esta vacia a proposito**: el playbook no crea nada por si
+solo. El ciclo se probo el 23/07/2026 con una regla de humo (`accept
+any/any/any`), se comprobo que aparecia en SmartConsole y se borro. Verificado en
+las dos direcciones: crear -> idempotente -> borrar -> idempotente.
 
-> **Borrarla antes de anadir cualquier `install-policy`.** Instalada, abre el
-> firewall entero.
-> ```bash
-> ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent
-> ```
+Al anadir reglas reales:
+
+- **Ningun `accept any/any`** que pueda sobrevivir a un `install-policy`. La capa
+  `Network` ya tiene `implicit-cleanup-action: drop`, asi que lo que no se
+  permite explicitamente se cae solo. El playbook avisa si detecta uno declarado,
+  pero **solo avisa**.
+- Usar **`relative_position`** (`above` / `below` respecto a una regla con
+  nombre) en vez de `position: top|bottom`. Con varias reglas el orden decide que
+  se permite, y `top`/`bottom` es posicional y fragil.
+
+Rollback de lo que haya declarado:
+
+```bash
+ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent
+```
 
 ## Convenciones
 

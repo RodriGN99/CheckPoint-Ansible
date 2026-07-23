@@ -16,9 +16,13 @@
 # SmartConsole, pero los gateways NO la aplican. El trafico no cambia hasta un
 # 'install-policy' (modulo cp_mgmt_install_policy), que este playbook NO hace.
 #
-# Es deliberado. La regla de prueba de policy.yml es un ACCEPT ANY/ANY/ANY:
-# instalarla abriria el firewall entero. Cuando haya reglas reales, el
-# install-policy se anade como paso aparte y consciente.
+# Es deliberado: mientras solo se publique, una regla mal puesta no corta ni
+# abre trafico. Cuando haya reglas reales, el install-policy se anade como paso
+# aparte y consciente.
+#
+# Hoy cp_access_rules esta VACIA, asi que este playbook no hace nada. Se probo
+# con una regla de humo (accept any/any/any) el 23/07/2026 y se borro: el ciclo
+# quedo verificado en crear -> idempotente -> borrar -> idempotente.
 # =============================================================================
 
 # El nombre del play NO puede llevar variables: se evalua antes de cargar los
@@ -32,17 +36,33 @@
 
   tasks:
 
-    - name: "Aviso: hay un accept any/any entre las reglas"
+    - name: "Nada que hacer si no hay reglas declaradas"
       ansible.builtin.debug:
         msg: >-
-          Reglas con action=Accept y source/destination=Any:
+          cp_access_rules esta vacia: este playbook no va a tocar nada.
+          Las reglas se declaran en group_vars/all/policy.yml.
+      when: cp_access_rules | length == 0
+
+    # Red de seguridad: un accept con origen Y destino 'Any' anula el firewall
+    # en cuanto se instale politica. Aqui solo avisa, no bloquea: publicarlo no
+    # afecta al trafico.
+    - name: "AVISO si hay algun accept any/any declarado"
+      ansible.builtin.debug:
+        msg: >-
+          OJO: reglas accept any/any declaradas ->
+          {{ cp_accept_any | join(', ') }}.
+          Se publican pero NO se instalan. NO instalar politica con ellas dentro.
+      vars:
+        cp_accept_any: >-
           {{ cp_access_rules
+             | selectattr('action', 'defined')
              | selectattr('action', 'eq', 'Accept')
              | selectattr('source', 'contains', 'Any')
              | selectattr('destination', 'contains', 'Any')
-             | map(attribute='name') | join(', ') | default('ninguna', true) }}.
-          Se PUBLICAN pero NO se instalan: los gateways no las aplican.
-      when: cp_policy_state == 'present'
+             | map(attribute='name') | list }}
+      when:
+        - cp_policy_state == 'present'
+        - cp_accept_any | length > 0
 
     # El nombre de la tarea no lleva {{ item.name }}: en un loop, 'item' no esta
     # definido al construir el nombre. Se identifica con loop_control.label.
@@ -50,7 +70,12 @@
       check_point.mgmt.cp_mgmt_access_rule:
         name: "{{ item.name }}"
         layer: "{{ cp_policy_layer }}"
-        position: "{{ item.position | default('top') }}"
+        # 'omit' quita el parametro si la regla no lo declara. Preferir
+        # relative_position (above/below) a position (top/bottom), que es
+        # posicional: la propia doc del modulo avisa de que puede no ser
+        # idempotente.
+        position: "{{ item.position | default(omit) }}"
+        relative_position: "{{ item.relative_position | default(omit) }}"
         source: "{{ item.source }}"
         destination: "{{ item.destination }}"
         service: "{{ item.service }}"
@@ -77,7 +102,7 @@
         msg: >-
           {{ 'SIMULACION' if ansible_check_mode else 'EJECUCION REAL' }} |
           estado={{ cp_policy_state }} |
-          reglas cambiadas={{ cp_rules_result.results
+          reglas cambiadas={{ cp_rules_result.results | default([])
                               | selectattr('changed') | list | length }}
           de {{ cp_access_rules | length }} |
           Publicado en el SMS, NO instalado en los gateways.
