@@ -123,6 +123,8 @@ ansible-playbook playbooks/00-discovery.yml --syntax-check
 ansible-playbook playbooks/01-objects.yml  --syntax-check
 
 # 4. Descubrimiento READ-ONLY (primero esto, siempre)
+#    Ademas de listar, comprueba que el SIC sigue 'communicating' en todos los
+#    equipos. Es lo unico que puede hacer fallar este playbook.
 ansible-playbook playbooks/00-discovery.yml
 
 # 5. Objetos: primera escritura real, reversible
@@ -138,6 +140,16 @@ ansible-playbook playbooks/02-cluster.yml
 `00-discovery.yml` **no cambia nada**: valida el camino Ansible -> Management API
 y lista lo que ya existe en el SMS (gateways, clusters, paquetes de politica).
 Vuelca el resultado a `discovery/` (ignorado por git).
+
+Al final comprueba el **SIC** de miembros de cluster y gateways, y **falla si
+alguno no esta `communicating`**. No hace llamadas extra: `sic-state` ya viene en
+los facts que se piden con `details_level: full`. El chequeo va despues del
+volcado a JSON a proposito, para que el fichero de `discovery/` se genere aunque
+el assert falle.
+
+> Ese chequeo **no valida `vault_cp_sic_key`**. Esa clave es la one-time password
+> del alta; con el SIC establecido se sustituye por certificados y ya no hay forma
+> de comprobarla sin resetear el trust.
 
 Si falla la conexion, lo mas probable es que la API no acepte llamadas desde la IP
 de la VM Ansible. En el SMS:

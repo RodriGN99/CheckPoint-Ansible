@@ -51,6 +51,11 @@ no contra `cp_mgmt_*_facts`.**
 
 ### 5. Secretos
 
+`vault_cp_sic_key` es la **one-time password del alta**, no una credencial de
+gestion. Con el SIC ya `communicating` no hay forma de validarla: solo se usaria
+al dar de alta un gateway nuevo o tras un reset de SIC. **No "probarla" mandando
+`members` en `cp_mgmt_simple_cluster`** — eso no comprueba nada, rompe el trust.
+
 `inventories/lab/group_vars/all/vault.yml` va **en claro y en `.gitignore`**. Se
 gestiona a mano en la VM Ansible y **nunca se commitea**. Por eso los comandos no
 llevan `--ask-vault-pass`. Si algun dia se cifra con `ansible-vault`, hay que
@@ -94,7 +99,7 @@ aunque CP-GW-B tenga fisicamente `bond1.x`. Es correcto, no "arreglarlo".
 
 | Playbook | Que hace | Riesgo |
 |---|---|---|
-| `00-discovery.yml` | Lista gateways, clusters y paquetes. Vuelca a `discovery/` | Ninguno (read-only) |
+| `00-discovery.yml` | Lista gateways, clusters y paquetes. Vuelca a `discovery/`. Verifica el SIC | Ninguno (read-only), pero **falla si algun SIC no esta `communicating`** |
 | `01-objects.yml` | Crea objetos + `publish` | Bajo. Reversible: `-e cp_objects_state=absent` |
 | `02-cluster.yml` | ClusterXL declarativo | **Alto.** Siempre `--check` primero |
 

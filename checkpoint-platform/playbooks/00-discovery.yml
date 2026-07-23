@@ -7,6 +7,8 @@
 # Objetivos:
 #   1. Validar el camino  VM Ansible -> Management API del SMS (192.168.90.170).
 #   2. Ver que hay ya creado en el SMS: gateways, clusters y paquetes de politica.
+#   3. Comprobar que el SIC sigue 'communicating' en todos los equipos. Es la
+#      unica tarea que puede hacer fallar el playbook (ver el bloque del final).
 #
 # Uso (desde CheckPoint-Ansible/checkpoint-platform/, donde vive ansible.cfg;
 # este ya define inventory = inventories/lab/hosts.ini, asi que no hace falta '-i'):
@@ -89,3 +91,68 @@
         mode: "0640"
       delegate_to: localhost
       connection: local
+
+    # =========================================================================
+    # CHEQUEO DE SIC  (va al final a proposito)
+    # =========================================================================
+    # El SIC es la confianza SMS <-> gateway. Si se rompe, el SMS deja de poder
+    # gestionar e instalar politica en ese equipo, y el sintoma en SmartConsole
+    # es ambiguo (se confunde con licencias o con topologia). Verlo aqui, en el
+    # descubrimiento, lo convierte en un dato explicito.
+    #
+    # NO hace ninguna llamada nueva: 'sic-state' ya viene en los facts de arriba
+    # porque se piden con details_level: full.
+    #
+    # OJO: esto NO valida vault_cp_sic_key. Esa clave es la one-time password
+    # del alta; una vez el SIC esta 'communicating' se sustituye por certificados
+    # y ya no existe forma de comprobarla sin resetear el trust.
+    #
+    # Este bloque va DESPUES del volcado a JSON porque el assert final es la
+    # unica tarea del playbook que puede fallar: asi el fichero de discovery se
+    # genera igualmente y queda la evidencia de la ejecucion.
+
+    - name: "SIC | recopilar equipos con estado SIC"
+      ansible.builtin.set_fact:
+        cp_sic_objects: >-
+          {{ (
+               (cp_clusters.ansible_facts.simple_clusters.objects | default([])
+                 | selectattr('cluster-members', 'defined')
+                 | map(attribute='cluster-members') | flatten)
+               + (cp_gateways.ansible_facts.simple_gateways.objects | default([]))
+             )
+             | selectattr('sic-state', 'defined') | list }}
+
+    - name: "SIC | estado por equipo"
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.name }} ({{ item['ip-address'] | default('sin IP') }})
+          -> SIC {{ item['sic-state'] }}
+      loop: "{{ cp_sic_objects }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "SIC | aviso si no se ha podido leer ningun estado"
+      ansible.builtin.debug:
+        msg: >-
+          AVISO: no se ha leido el SIC de ningun equipo. O el SMS no tiene
+          gateways/clusters dados de alta, o los facts no han traido
+          'sic-state'. El assert siguiente no comprueba nada en este caso.
+      when: cp_sic_objects | length == 0
+
+    - name: "SIC | ningun equipo fuera de 'communicating'"
+      ansible.builtin.assert:
+        that:
+          - cp_sic_objects | rejectattr('sic-state', 'eq', 'communicating') | list | length == 0
+        success_msg: >-
+          SIC correcto en {{ cp_sic_objects | length }} equipo(s):
+          {{ cp_sic_objects | map(attribute='name') | join(', ') }}
+        fail_msg: >-
+          SIC ROTO. El SMS no puede gestionar estos equipos:
+          {{ cp_sic_objects | rejectattr('sic-state', 'eq', 'communicating')
+             | map(attribute='name') | join(', ') }}.
+          Estados leidos: {{ cp_sic_objects
+             | rejectattr('sic-state', 'eq', 'communicating')
+             | map(attribute='sic-state') | join(', ') }}.
+          Se rehace con 'cpconfig' en el gateway (Secure Internal Communication
+          -> Reset) y volviendo a inicializarlo desde SmartConsole con la misma
+          clave. NO lo arregla ningun playbook de este repo.
