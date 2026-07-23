@@ -14,19 +14,14 @@
 # cp_mgmt_simple_cluster identifica el objeto por 'name': si se pone otro nombre,
 # no gestiona el existente, CREA UNO NUEVO duplicado con la misma VIP.
 #
-# A VERIFICAR (no bloqueante, pero son desajustes reales entre miembros vistos
-# en el Gaia Portal):
+# RESUELTO (23/07/2026), se deja constancia porque este bloque decia lo contrario:
 #
-#   1. El bond se llama 'bond2' en CP-GW-A y 'bond1' en CP-GW-B.
-#      ClusterXL espera nombres de interfaz identicos en ambos miembros.
-#      Estos ficheros asumen que se unifica a 'bond1'.
+#   1. Bonds: 'bond2' en CP-GW-A y 'bond1' en CP-GW-B. NO se unifica. La
+#      topologia del cluster en el SMS usa el naming de CP-GW-A (bond2.x) y
+#      funciona asi. Este fichero lo calca a proposito.
 #
-#   2. eth3 (sync): CP-GW-A esta en /29 (255.255.255.248) y CP-GW-B en /30
-#      (255.255.255.252). Deberian ser la misma subred con la misma mascara.
-#
-# Comprobar con 'cphaprob -a if' en ambos miembros UNA VEZ RESUELTAS LAS
-# LICENCIAS. Con CP-GW-A sin licencia el cluster no llega a formarse, asi que
-# un posible mismatch de interfaces no se habria manifestado todavia.
+#   2. eth3 (sync): CP-GW-B estaba en /30 y se unifico a /29. Los dos miembros
+#      y el SMS coinciden ya.
 # =============================================================================
 
 cp_cluster:
@@ -80,10 +75,13 @@ cp_cluster:
       anti_spoofing: false
 
   # Blades. Arrancamos con lo minimo: solo firewall.
-  # Verificados en la doc del modulo. 'vpn' existe en simple_gateway pero no lo
-  # he podido confirmar en simple_cluster: no lo pongo hasta comprobarlo.
+  # 'vpn' CONFIRMADO en simple_cluster (leido del objeto real con
+  # cp_mgmt_simple_cluster_facts el 23/07/2026: vpn=False). Se declara a false
+  # de forma explicita: no se usa VPN ni en lab ni en produccion, y enviarlo
+  # hace que 'equals' lo compare y avise si alguien lo activa a mano.
   blades:
     firewall: true
+    vpn: false
     ips: false
     application_control: false
     url_filtering: false

@@ -77,6 +77,11 @@ volver a añadir ese flag.
 | `cphaconf set_ccp unicast` | **No existe en R81.20.** En R81.x el CCP ya va siempre unicast. No proponerlo |
 | `"with IGMP Membership"` en `cphaprob state` | Es la salida **NORMAL** de un cluster sano, no un sintoma |
 | Grupo `[sms]` en el inventario | Se llama **`[management]`** (colisionaba con el host `sms`) |
+| `cp_mgmt_access_rulebase_facts` | **No existe.** Es `cp_mgmt_access_rule_facts` (y no acepta `limit`) |
+| `cp_mgmt_export_access_rulebase` | El modulo existe pero la API devuelve **404**: no esta en esta version |
+| `package_facts` -> `.objects` | Es **`ansible_facts.packages.packages`**. Los demas `*_facts` si usan `.objects` |
+| Variables en el `name:` de un play | Se evalua **antes** de cargar `group_vars` -> `undefined`. Idem en el `name:` de una tarea con `loop` (`item`): usar `loop_control.label` |
+| `position: top` / `bottom` | La doc avisa de que **puede** no ser idempotente. Verificado que aqui SI lo es. Para reglas de verdad, usar `relative_position` |
 
 ### Hay DOS parejas de gateways con los mismos hostnames
 
@@ -102,10 +107,15 @@ aunque CP-GW-B tenga fisicamente `bond1.x`. Es correcto, no "arreglarlo".
 | `00-discovery.yml` | Lista gateways, clusters y paquetes. Vuelca a `discovery/`. Verifica el SIC | Ninguno (read-only), pero **falla si algun SIC no esta `communicating`** |
 | `01-objects.yml` | Crea objetos + `publish` | Bajo. Reversible: `-e cp_objects_state=absent` |
 | `02-cluster.yml` | ClusterXL declarativo | **Alto.** Siempre `--check` primero |
+| `03-policy.yml` | Reglas de acceso + `publish` | Bajo mientras no se instale. Reversible: `-e cp_policy_state=absent` |
 
 Nada instala politica todavia: `publish` solo consolida en la base de datos del
 SMS. **Los gateways no reciben nada hasta un `install-policy`**, que aun no
 existe en el proyecto.
+
+**`ans-test-rule-1` es un `accept any/any/any`.** Es una regla de humo. Mientras
+solo se publique no afecta al trafico, pero **instalar politica con ella dentro
+abre el firewall entero**. Borrarla antes de anadir cualquier `install-policy`.
 
 ---
 

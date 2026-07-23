@@ -83,6 +83,7 @@ checkpoint-platform/
 │   │   │   ├── main.yml                # conexion httpapi + redes del lab
 │   │   │   ├── cluster.yml             # definicion logica del ClusterXL
 │   │   │   ├── objects.yml             # objetos de prueba + estado present/absent
+│   │   │   ├── policy.yml              # reglas de acceso (contiene un accept any/any de prueba)
 │   │   │   ├── vault.yml               # credenciales (lo creas tu, NO esta en el repo)
 │   │   │   └── vault.yml.example       # plantilla
 │   │   ├── management.yml              # credenciales Management API (grupo [management])
@@ -91,7 +92,8 @@ checkpoint-platform/
 └── playbooks/
     ├── 00-discovery.yml                # READ-ONLY
     ├── 01-objects.yml                  # primera escritura: objetos + publish (reversible)
-    └── 02-cluster.yml                  # ClusterXL declarativo — LANZAR SIEMPRE CON --check
+    ├── 02-cluster.yml                  # ClusterXL declarativo — LANZAR SIEMPRE CON --check
+    └── 03-policy.yml                   # reglas de acceso + publish (NO instala politica)
 ```
 
 > El grupo se llama `[management]` (no `[sms]`) para no colisionar con el host
@@ -135,6 +137,11 @@ ansible-playbook playbooks/01-objects.yml -e cp_objects_state=absent
 # 6. Cluster: SIEMPRE en simulacion primero. Solo ejecutar si da changed=0.
 ansible-playbook playbooks/02-cluster.yml --check
 ansible-playbook playbooks/02-cluster.yml
+
+# 7. Politica: crea las reglas y publica. NO instala nada en los gateways.
+ansible-playbook playbooks/03-policy.yml
+#    rollback:
+ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent
 ```
 
 `00-discovery.yml` **no cambia nada**: valida el camino Ansible -> Management API
@@ -160,6 +167,24 @@ mgmt_cli set api-settings accepted-api-calls-from \
 api restart && api status   # esperar "API readiness test SUCCESSFUL"
 ```
 
+## Politica de acceso
+
+`03-policy.yml` crea reglas en la capa **`Network`** del paquete **`Standard`**
+(nombres reales del SMS) y hace `publish`. **No instala politica.**
+
+> **Publicar no es instalar.** `publish` consolida los cambios en la base de datos
+> del SMS: la regla se ve en SmartConsole, pero los gateways **no la aplican**.
+> El trafico no cambia hasta un `install-policy`, que este repo no hace.
+
+Hoy solo hay una regla, `ans-test-rule-1`, que es un **`accept any/any/any`**
+creado como prueba de humo. Verificado idempotente (segunda pasada `changed=0`).
+
+> **Borrarla antes de anadir cualquier `install-policy`.** Instalada, abre el
+> firewall entero.
+> ```bash
+> ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent
+> ```
+
 ## Convenciones
 
 - **`ansible_network_os` se fija a nivel de play, nunca en `group_vars`.** El SMS se
@@ -173,11 +198,14 @@ api restart && api status   # esperar "API readiness test SUCCESSFUL"
 ## Pendiente
 
 1. **Licencias de CP-GW-A** — causa del estado rojo en SmartConsole.
-2. **CCP a unicast** — ver "Salud del cluster". Mejora, no urgente.
-3. **Blade `vpn` en `simple_cluster`** — existe en `simple_gateway`; en `simple_cluster`
-   no lo he podido confirmar en la documentacion. Sin poner hasta verificarlo.
-4. Playbooks siguientes: gestionar el objeto cluster (`cp_mgmt_simple_cluster`),
-   objetos, y politica.
+2. **Borrar `ans-test-rule-1`** (`accept any/any`) antes de que exista cualquier
+   `install-policy`. Ver la seccion "Politica de acceso".
+3. **`install-policy`** — el paso que falta para que los gateways apliquen algo.
+   Solo cuando haya reglas reales.
+
+Resuelto: el blade **`vpn` SI existe** en `simple_cluster` (leido del objeto real
+el 23/07/2026). Declarado a `false` en `cluster.yml`: no se usa VPN ni en lab ni
+en produccion.
 
 ## Notas sobre la coleccion
 

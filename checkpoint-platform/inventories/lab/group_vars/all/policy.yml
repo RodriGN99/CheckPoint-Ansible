@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# Politica de acceso: reglas gestionadas por Ansible.
+# =============================================================================
+# Lo consume playbooks/03-policy.yml, que ataca al SMS (hosts: sms). Por eso
+# vive en group_vars/all, igual que cluster.yml y objects.yml.
+#
+# -----------------------------------------------------------------------------
+# AVISO: ans-test-rule-1 es un ACCEPT ANY/ANY/ANY
+# -----------------------------------------------------------------------------
+# Es una regla de humo, para comprobar que Ansible crea reglas y que aparecen
+# en SmartConsole. Mientras solo se publique, NO afecta al trafico: los
+# gateways no aplican nada hasta un 'install-policy', que este repo no hace.
+#
+# Si algun dia se instala politica, ESTA REGLA ABRE EL FIREWALL ENTERO.
+# Borrarla antes:
+#   ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent
+# =============================================================================
+
+# Estado declarativo de las reglas: present | absent
+cp_policy_state: present
+
+# Paquete y capa reales del SMS, leidos con cp_mgmt_package_facts (23/07/2026).
+# La capa 'Network' tiene implicit-cleanup-action: drop.
+cp_policy_package: "Standard"
+cp_policy_layer: "Network"
+
+cp_access_rules:
+  - name: "ans-test-rule-1"
+    # OJO: 'top'/'bottom' pueden no ser idempotentes (lo avisa la propia doc del
+    # modulo). Para reglas de verdad, usar relative_position con above/below.
+    position: "top"
+    source: ["Any"]
+    destination: ["Any"]
+    service: ["Any"]
+    action: "Accept"
+    enabled: true
+    track: "Log"        # sin log no habria forma de ver si llega a matchear
+    comments: "PRUEBA Ansible. Accept any/any. BORRAR antes de instalar politica."
