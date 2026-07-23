@@ -5,16 +5,21 @@
 # Lo consume playbooks/03-policy.yml, que ataca al SMS (hosts: sms). Por eso
 # vive en group_vars/all, igual que cluster.yml y objects.yml.
 #
-# -----------------------------------------------------------------------------
-# AVISO: ans-test-rule-1 es un ACCEPT ANY/ANY/ANY
-# -----------------------------------------------------------------------------
-# Es una regla de humo, para comprobar que Ansible crea reglas y que aparecen
-# en SmartConsole. Mientras solo se publique, NO afecta al trafico: los
-# gateways no aplican nada hasta un 'install-policy', que este repo no hace.
+# AHORA MISMO NO HAY NINGUNA REGLA DECLARADA, y es deliberado: el playbook no
+# debe crear nada por si solo. Se probo con una regla de humo (un accept
+# any/any/any) el 23/07/2026, se comprobo que aparecia en SmartConsole y se
+# borro. El ciclo quedo verificado en las dos direcciones: crear -> idempotente
+# -> borrar -> idempotente.
 #
-# Si algun dia se instala politica, ESTA REGLA ABRE EL FIREWALL ENTERO.
-# Borrarla antes:
-#   ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent
+# Al anadir reglas de verdad, dos avisos:
+#
+#   1. NUNCA un 'accept any/any' que sobreviva a un install-policy: abre el
+#      firewall entero. La capa 'Network' ya tiene implicit-cleanup-action:
+#      drop, asi que lo que no se permite explicitamente se cae solo.
+#
+#   2. Con varias reglas el ORDEN decide que se permite. Usar
+#      'relative_position' (above/below, respecto a una regla con nombre) en vez
+#      de 'position: top|bottom', que es posicional y fragil.
 # =============================================================================
 
 # Estado declarativo de las reglas: present | absent
@@ -25,15 +30,16 @@ cp_policy_state: present
 cp_policy_package: "Standard"
 cp_policy_layer: "Network"
 
-cp_access_rules:
-  - name: "ans-test-rule-1"
-    # OJO: 'top'/'bottom' pueden no ser idempotentes (lo avisa la propia doc del
-    # modulo). Para reglas de verdad, usar relative_position con above/below.
-    position: "top"
-    source: ["Any"]
-    destination: ["Any"]
-    service: ["Any"]
-    action: "Accept"
-    enabled: true
-    track: "Log"        # sin log no habria forma de ver si llega a matchear
-    comments: "PRUEBA Ansible. Accept any/any. BORRAR antes de instalar politica."
+# Vacia a proposito. Formato de cada entrada:
+#
+#   - name: "..."                  # identifica el objeto: cambiarlo crea otro
+#     relative_position:           # preferible a 'position'
+#       below: "nombre-de-otra-regla"
+#     source: ["..."]
+#     destination: ["..."]
+#     service: ["..."]
+#     action: "Accept"             # Accept | Drop | Reject | ...
+#     enabled: true
+#     track: "Log"
+#     comments: "..."
+cp_access_rules: []
