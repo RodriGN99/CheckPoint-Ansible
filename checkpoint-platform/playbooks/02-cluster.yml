@@ -58,6 +58,7 @@
 
         # Blades. Se envian explicitamente para que 'equals' los compare.
         firewall: "{{ cp_cluster.blades.firewall }}"
+        vpn: "{{ cp_cluster.blades.vpn }}"
         ips: "{{ cp_cluster.blades.ips }}"
         application_control: "{{ cp_cluster.blades.application_control }}"
         url_filtering: "{{ cp_cluster.blades.url_filtering }}"

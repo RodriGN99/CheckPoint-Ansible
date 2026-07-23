@@ -1,0 +1,83 @@
+---
+# =============================================================================
+# 03 - POLITICA DE ACCESO
+# =============================================================================
+# Crea reglas en la capa de acceso y publica. NO INSTALA POLITICA.
+#
+# Uso (desde CheckPoint-Ansible/checkpoint-platform/):
+#   ansible-playbook playbooks/03-policy.yml --check   # simulacion
+#   ansible-playbook playbooks/03-policy.yml           # crear + publicar
+#   ansible-playbook playbooks/03-policy.yml -e cp_policy_state=absent   # borrar
+#
+# -----------------------------------------------------------------------------
+# PUBLICAR NO ES INSTALAR
+# -----------------------------------------------------------------------------
+# 'publish' consolida los cambios en la base de datos del SMS: la regla se ve en
+# SmartConsole, pero los gateways NO la aplican. El trafico no cambia hasta un
+# 'install-policy' (modulo cp_mgmt_install_policy), que este playbook NO hace.
+#
+# Es deliberado. La regla de prueba de policy.yml es un ACCEPT ANY/ANY/ANY:
+# instalarla abriria el firewall entero. Cuando haya reglas reales, el
+# install-policy se anade como paso aparte y consciente.
+# =============================================================================
+
+# El nombre del play NO puede llevar variables: se evalua antes de cargar los
+# group_vars, y 'cp_policy_layer' aun no existe en ese momento.
+- name: "03 | Politica de acceso"
+  hosts: sms
+  gather_facts: false
+  connection: httpapi
+  vars:
+    ansible_network_os: check_point.mgmt.checkpoint
+
+  tasks:
+
+    - name: "Aviso: hay un accept any/any entre las reglas"
+      ansible.builtin.debug:
+        msg: >-
+          Reglas con action=Accept y source/destination=Any:
+          {{ cp_access_rules
+             | selectattr('action', 'eq', 'Accept')
+             | selectattr('source', 'contains', 'Any')
+             | selectattr('destination', 'contains', 'Any')
+             | map(attribute='name') | join(', ') | default('ninguna', true) }}.
+          Se PUBLICAN pero NO se instalan: los gateways no las aplican.
+      when: cp_policy_state == 'present'
+
+    # El nombre de la tarea no lleva {{ item.name }}: en un loop, 'item' no esta
+    # definido al construir el nombre. Se identifica con loop_control.label.
+    - name: "Regla de acceso"
+      check_point.mgmt.cp_mgmt_access_rule:
+        name: "{{ item.name }}"
+        layer: "{{ cp_policy_layer }}"
+        position: "{{ item.position | default('top') }}"
+        source: "{{ item.source }}"
+        destination: "{{ item.destination }}"
+        service: "{{ item.service }}"
+        action: "{{ item.action }}"
+        enabled: "{{ item.enabled | default(true) }}"
+        track:
+          type: "{{ item.track | default('Log') }}"
+        comments: "{{ item.comments | default('Gestionada por Ansible.') }}"
+        state: "{{ cp_policy_state }}"
+        auto_publish_session: false   # el publish se hace abajo, y solo si cambia
+      loop: "{{ cp_access_rules }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: cp_rules_result
+
+    - name: "Publicar (solo si hubo cambios y NO es simulacion)"
+      check_point.mgmt.cp_mgmt_publish:
+      when:
+        - cp_rules_result is changed
+        - not ansible_check_mode
+
+    - name: "Resultado"
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'SIMULACION' if ansible_check_mode else 'EJECUCION REAL' }} |
+          estado={{ cp_policy_state }} |
+          reglas cambiadas={{ cp_rules_result.results
+                              | selectattr('changed') | list | length }}
+          de {{ cp_access_rules | length }} |
+          Publicado en el SMS, NO instalado en los gateways.
